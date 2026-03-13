@@ -3,24 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Advanced Cockpit Panel Editor</title>
+    <title>Advanced Python Cockpit Editor</title>
+    <script src="https://cdn.jsdelivr.net/npm/brython@3.11.3/brython.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/brython@3.11.3/brython_stdlib.js"></script>
+
     <style>
-        /* --- FONT --- */
         @font-face {
             font-family: 'OpenBus';
             src: url('https://cdn.jsdelivr.net/gh/flybywiresim/aircraft@master/fbw-a32nx/src/fonts/OpenBus.ttf') format('truetype');
         }
 
-        /* --- USER PROVIDED COCKPIT CSS --- */
-        .panel-canvas { color: #FFF; font-family: 'OpenBus', Arial, sans-serif; font-size: 14pt; }
-        .pushButton { display: flex; align-items: center; justify-content: center; border: none; background: transparent; text-align: center; position: relative; }
-        .pushButton>.label { text-align: center; font-size: 0.7em; margin: 0; padding: 0.2em; white-space: nowrap; }
+        /* --- MOBILE FIXES & COCKPIT CSS --- */
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
         
-        /* Vertical Label Support */
+        body { margin: 0; padding: 0; overflow: hidden; background: #111; font-family: sans-serif; user-select: none; -webkit-user-select: none; touch-action: none; }
+        
+        .panel-canvas { color: #FFF; font-family: 'OpenBus', Arial, sans-serif; font-size: 14pt; }
+        .pushButton { display: flex; align-items: center; justify-content: center; border: none; background: transparent; text-align: center; position: relative; pointer-events: none; }
+        .pushButton>.label { text-align: center; font-size: 0.7em; margin: 0; padding: 0.2em; white-space: nowrap; }
         .label-vertical { writing-mode: vertical-rl; text-orientation: upright; letter-spacing: 0.1em; }
 
-        .pb { display: inline-block; background: linear-gradient(328deg, rgba(42,42,42,1) 0%, rgba(47,47,47,1) 83%); border: 0.2em solid #222; width: 4.5em; height: 4.5em; cursor: pointer; font-size: 0.7em; border-radius: 0.3em; text-align: center; color: #222; font-weight: normal; }
-        .pb:hover { background: linear-gradient(328deg, rgba(57,57,57,1) 0%, rgba(62,62,62,1) 83%); }
+        .pb { display: inline-block; background: linear-gradient(328deg, rgba(42,42,42,1) 0%, rgba(47,47,47,1) 83%); border: 0.2em solid #222; width: 4.5em; height: 4.5em; font-size: 0.7em; border-radius: 0.3em; text-align: center; color: #222; font-weight: normal; pointer-events: none; }
         .pb>span { display: inline-block; margin-top: 0.55em; box-sizing: border-box; transition: color 0.1s, text-shadow 0.1s, border-color 0.1s; }
         .pb .main { border: 0.15em solid #222; border-radius: 0.1em; padding: 0.2em 0.2em 0.1em 0.2em; width: 80%; }
         
@@ -35,58 +38,84 @@
         .pb .main.logic-active.activeGreen { color: #2BEC24; border-color: #2BEC24; text-shadow: 0 0 0.1em #2BEC24; }
 
         /* --- EDITOR UI CSS --- */
-        body { margin: 0; padding: 0; overflow: hidden; background: #111; font-family: sans-serif; user-select: none; touch-action: none; }
-        * { box-sizing: border-box; }
-        
         #editor-ui { display: flex; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1000; }
         .ui-panel { background: rgba(32, 44, 59, 0.95); border: 1px solid #444; color: white; padding: 15px; pointer-events: auto; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 0 15px rgba(0,0,0,0.5); overflow-y: auto; max-height: 100vh; }
-        #toolbar { width: 250px; border-right: 1px solid #555; }
+        #toolbar { width: 300px; border-right: 1px solid #555; }
         #properties { width: 300px; margin-left: auto; border-left: 1px solid #555; }
         
         .ui-panel h3 { margin: 0 0 5px 0; font-size: 14px; border-bottom: 1px solid #555; padding-bottom: 5px; color: #54BEFF;}
         .ui-panel label { font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
-        .ui-panel input[type="text"], .ui-panel input[type="number"], .ui-panel select, .ui-panel textarea { background: #111; color: white; border: 1px solid #555; padding: 6px; border-radius: 4px; font-family: inherit; }
+        .ui-panel input[type="text"], .ui-panel input[type="number"], .ui-panel select, .ui-panel textarea { background: #111; color: white; border: 1px solid #555; padding: 6px; border-radius: 4px; font-family: inherit; width: 100%; }
         .ui-panel button { background: #3B4C61; color: white; border: 1px solid #555; padding: 6px; border-radius: 4px; cursor: pointer; transition: 0.2s; }
         .ui-panel button:hover { background: #54BEFF; color: black; }
-        .ui-panel textarea { resize: vertical; min-height: 80px; font-family: monospace; }
+        .ui-panel textarea { resize: vertical; min-height: 250px; font-family: monospace; white-space: pre; }
         
         .row { display: flex; gap: 5px; align-items: center; }
         .row > * { flex: 1; }
 
         /* --- CANVAS & PAN/ZOOM --- */
-        #viewport { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; cursor: grab; background-color: #A7B7CA; touch-action: none; }
+        #viewport { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #A7B7CA; touch-action: none; cursor: grab; }
         #viewport:active { cursor: grabbing; }
         #canvas-container { position: absolute; top: 0; left: 0; transform-origin: 0 0; width: 0; height: 0; }
         
         .grid-layer { position: absolute; top: -5000px; left: -5000px; width: 10000px; height: 10000px; pointer-events: none; background-size: 50px 50px; background-image: linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.1) 1px, transparent 1px); display: none; }
         
-        .panel-element { position: absolute; transform: translate(-50%, -50%); cursor: grab; }
+        .panel-element { position: absolute; transform: translate(-50%, -50%); cursor: pointer; touch-action: none; }
         .panel-element.selected { outline: 2px dashed #54BEFF; outline-offset: 4px; z-index: 100; }
-        .panel-line { position: absolute; background: white; transform-origin: left center; cursor: pointer; }
-        .panel-line.selected { outline: 2px dashed #54BEFF; }
+        
+        /* Lines Layer */
+        #lines-layer { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; }
+        .svg-line { pointer-events: stroke; cursor: pointer; }
+        .svg-line.selected { stroke-dasharray: 5,5; stroke: #54BEFF !important; }
+        .line-handle { pointer-events: all; fill: #54BEFF; stroke: white; stroke-width: 2; cursor: move; }
 
         body.play-mode #viewport { cursor: default; }
-        body.play-mode .panel-element { cursor: pointer; }
         body.play-mode .ui-panel { display: none; }
         
-        /* Play Mode Overlays */
-        #hide-ui-btn { position: absolute; bottom: 20px; right: 20px; z-index: 2000; padding: 10px 20px; background: #E01223; color: white; border: none; border-radius: 5px; cursor: pointer; pointer-events: auto; }
+        #hide-ui-btn, #fullscreen-btn { position: absolute; bottom: 20px; z-index: 2000; padding: 10px 15px; background: #3B4C61; color: white; border: 1px solid #54BEFF; border-radius: 5px; cursor: pointer; pointer-events: auto; }
+        #hide-ui-btn { right: 20px; background: #E01223; border: none; }
+        #fullscreen-btn { right: 150px; }
         #hide-ui-btn:hover { background: #ff1a2f; }
+        #fullscreen-btn:hover { background: #54BEFF; color: black; }
 
-        #exit-play-btn { display: none; position: absolute; top: 20px; left: 20px; z-index: 2000; padding: 10px 15px; background: #3B4C61; color: white; border: 2px solid #54BEFF; border-radius: 5px; cursor: pointer; font-weight: bold; pointer-events: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-        #exit-play-btn:hover { background: #54BEFF; color: black; }
+        #exit-play-btn { display: none; position: absolute; top: 20px; left: 20px; z-index: 2000; padding: 10px 15px; background: #3B4C61; color: white; border: 2px solid #54BEFF; border-radius: 5px; cursor: pointer; font-weight: bold; pointer-events: auto; }
         body.play-mode #exit-play-btn { display: block; }
     </style>
 </head>
-<body>
+<body onload="brython()">
+
+<script type="text/python" id="py_runner">
+from browser import window
+import traceback
+
+def run_user_code(code):
+    env = {
+        'light': window.py_light,
+        'getState': window.py_getState,
+        'timeState': window.py_timeState,
+        'disableButton': window.py_disableButton
+    }
+    try:
+        exec(code, env)
+        window.pythonSetup = env.get('setup', lambda: None)
+        window.pythonUpdate = env.get('update', lambda: None)
+        window.pythonSetup() # run setup immediately
+        window.pythonError = ""
+    except Exception as e:
+        window.pythonError = traceback.format_exc()
+        
+window.run_user_code = run_user_code
+</script>
 
 <div id="viewport">
     <div id="canvas-container" class="panel-canvas">
         <div id="grid" class="grid-layer"></div>
+        <svg id="lines-layer"></svg>
         <div id="elements-layer"></div>
     </div>
 </div>
 
+<button id="fullscreen-btn" onclick="toggleFullscreen()">Fullscreen</button>
 <button id="hide-ui-btn" onclick="toggleUI()">Hide UI (ESC)</button>
 <button id="exit-play-btn" onclick="setMode('edit')">&#8592; Back to Edit Mode</button>
 
@@ -100,16 +129,30 @@
             </select>
         </label>
         
-        <h3>Global Variables</h3>
-        <label>Dynamic code evaluated every tick.<br>Variables below can use variables above!<br>
-            <textarea id="globalVars" oninput="parseVariables()" placeholder="VOLTS=28&#10;PWR_AVAIL = VOLTS > 10 | B1">PWR_AVAIL=1</textarea>
+        <h3>Python Global Script</h3>
+        <label>Define `setup()` and `update()`<br>
+            <textarea id="globalScript" spellcheck="false">def setup():
+    pass
+
+def update():
+    # Example: B2 copies B1's main state
+    if getState("B1", 0):
+        light(True, 1, "B2")
+    else:
+        light(False, 1, "B2")
+        
+    # Example: Amber light if B1 is on for 3+ secs
+    if timeState("B1", 0) > 3.0:
+        light(True, 2, "B1")
+    else:
+        light(False, 2, "B1")
+            </textarea>
         </label>
 
         <h3>Panel Settings</h3>
         <label>Background Color:
             <input type="color" id="bgColor" value="#A7B7CA" onchange="updateBgColor(this.value)">
         </label>
-        
         <div class="row">
             <label>Grid px: <input type="number" id="gridSize" value="50" onchange="updateGrid()"></label>
             <label style="flex-direction: row;">Show: <input type="checkbox" id="showGrid" onchange="updateGrid()"></label>
@@ -117,13 +160,17 @@
         <label style="flex-direction: row;"><input type="checkbox" id="snapGrid" checked> Snap to Grid</label>
         
         <h3>Add Elements</h3>
-        <button onclick="addButton()">+ Add Button</button>
-        <button onclick="addLine()">+ Add Line</button>
+        <div class="row">
+            <button onclick="addButton()">+ Add Button</button>
+            <button onclick="addLine()">+ Add Line</button>
+        </div>
         
         <h3>File</h3>
-        <button onclick="exportLayout()">Export Panel</button>
-        <button onclick="document.getElementById('importFile').click()">Import Panel</button>
-        <input type="file" id="importFile" style="display:none" accept=".json" onchange="importLayout(event)">
+        <div class="row">
+            <button onclick="exportLayout()">Export JSON</button>
+            <button onclick="document.getElementById('importFile').click()">Import JSON</button>
+            <input type="file" id="importFile" style="display:none" accept=".json" onchange="importLayout(event)">
+        </div>
         <button onclick="resetView()">Reset Pan/Zoom</button>
     </div>
 
@@ -136,93 +183,129 @@
         <div id="prop-button" style="display: none; flex-direction: column; gap: 8px;">
             <div class="row">
                 <label>Name (ID): <input type="text" id="p_name" oninput="updateProp('name', this.value)"></label>
-                <label>Default State: <select id="p_defaultActive" onchange="updateProp('defaultActive', this.value === 'true')">
-                    <option value="false">False (Off)</option>
-                    <option value="true">True (On)</option>
+                <label>Default On: <select id="p_defaultActive" onchange="updateProp('defaultActive', this.value === 'true')">
+                    <option value="false">False</option><option value="true">True</option>
                 </select></label>
+            </div>
+            
+            <div class="row">
+                <label>Pos X: <input type="number" id="p_x" oninput="updateProp('x', parseInt(this.value))"></label>
+                <label>Pos Y: <input type="number" id="p_y" oninput="updateProp('y', parseInt(this.value))"></label>
             </div>
             
             <label>Label Text: <input type="text" id="p_label" oninput="updateProp('label', this.value)"></label>
             <label>Label Position:
                 <select id="p_labelPos" onchange="updateProp('labelPos', this.value)">
-                    <option value="top">Top</option>
-                    <option value="bottom">Bottom</option>
-                    <option value="left">Left (Vertical)</option>
-                    <option value="right">Right (Vertical)</option>
+                    <option value="top">Top</option><option value="bottom">Bottom</option>
+                    <option value="left">Left (Vert)</option><option value="right">Right (Vert)</option>
                 </select>
             </label>
             
             <hr style="border-color:#444; width:100%;">
-            <label>Main Text (Bottom): <input type="text" id="p_mainText" oninput="updateProp('mainText', this.value)"></label>
+            <label>Main Text: <input type="text" id="p_mainText" oninput="updateProp('mainText', this.value)"></label>
             <label>Main Color:
                 <select id="p_mainColor" onchange="updateProp('mainColor', this.value)">
                     <option value="activeBlue">Blue</option><option value="activeWhite">White</option>
                     <option value="activeGreen">Green</option><option value="activeAmber">Amber</option><option value="activeRed">Red</option>
                 </select>
             </label>
-            <label>Main Logic Code (leave blank for default):
-                <input type="text" id="p_mainLogic" placeholder="e.g. (B1@>5) & PWR_AVAIL" oninput="updateProp('mainLogic', this.value)">
-            </label>
 
             <hr style="border-color:#444; width:100%;">
-            <label>Secondary Text (Top): <input type="text" id="p_secText" oninput="updateProp('secText', this.value)"></label>
-            <label>Secondary Color:
+            <label>Sec Text: <input type="text" id="p_secText" oninput="updateProp('secText', this.value)"></label>
+            <label>Sec Color:
                 <select id="p_secColor" onchange="updateProp('secColor', this.value)">
-                    <option value="activeAmber">Amber (Fault)</option><option value="activeRed">Red</option>
+                    <option value="activeAmber">Amber</option><option value="activeRed">Red</option>
                     <option value="activeWhite">White</option><option value="activeGreen">Green</option><option value="activeBlue">Blue</option>
                 </select>
-            </label>
-            <label>Secondary Logic Code (leave blank for default):
-                <input type="text" id="p_secLogic" placeholder="e.g. !B1 | V1>10" oninput="updateProp('secLogic', this.value)">
             </label>
         </div>
 
         <div id="prop-line" style="display: none; flex-direction: column; gap: 10px;">
             <div class="row">
-                <label>Width: <input type="number" id="p_lineWidth" oninput="updateProp('width', parseInt(this.value))"></label>
-                <label>Height: <input type="number" id="p_lineHeight" oninput="updateProp('height', parseInt(this.value))"></label>
+                <label>X1: <input type="number" id="p_x1" oninput="updateProp('x1', parseInt(this.value))"></label>
+                <label>Y1: <input type="number" id="p_y1" oninput="updateProp('y1', parseInt(this.value))"></label>
             </div>
-            <label>Color: <input type="color" id="p_lineColor" oninput="updateProp('color', this.value)"></label>
+            <div class="row">
+                <label>X2: <input type="number" id="p_x2" oninput="updateProp('x2', parseInt(this.value))"></label>
+                <label>Y2: <input type="number" id="p_y2" oninput="updateProp('y2', parseInt(this.value))"></label>
+            </div>
+            <div class="row">
+                <label>Thickness: <input type="number" id="p_lineWidth" oninput="updateProp('width', parseInt(this.value))"></label>
+                <label>Color: <input type="color" id="p_lineColor" oninput="updateProp('color', this.value)"></label>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
     // --- STATE MANAGEMENT ---
-    let state = {
-        elements: [],
-        globalExpressions: [],
-        selectedId: null,
-        mode: 'edit', 
-        uiVisible: true,
-        pan: { x: 0, y: 0 },
-        zoom: 1
-    };
-
+    let state = { elements: [], selectedId: null, mode: 'edit', uiVisible: true, pan: { x: 0, y: 0 }, zoom: 1 };
     let logicInterval = null;
     let elementCounter = 1;
 
     const viewport = document.getElementById('viewport');
     const container = document.getElementById('canvas-container');
     const elementsLayer = document.getElementById('elements-layer');
+    const linesLayer = document.getElementById('lines-layer');
 
-    // Parse Variables from UI into expression blocks
-    function parseVariables() {
-        const text = document.getElementById('globalVars').value;
-        state.globalExpressions = [];
-        text.split('\n').forEach(line => {
-            const parts = line.split('=');
-            if (parts.length >= 2) {
-                const key = parts[0].trim();
-                const expr = parts.slice(1).join('=').trim();
-                if (key) state.globalExpressions.push({ key, expr });
+    // --- PYTHON API HOOKS ---
+    function getEl(id) { return state.elements.find(e => e.name === id); }
+    window.py_light = (stateVal, type, id) => {
+        let el = getEl(id); if(!el) return;
+        if(type === 0 && el.active !== stateVal) { el.active = stateVal; el.lastToggle = Date.now(); }
+        if(type === 1 && el.mainActive !== stateVal) { el.mainActive = stateVal; el.lastMainToggle = Date.now(); }
+        if(type === 2 && el.secActive !== stateVal) { el.secActive = stateVal; el.lastSecToggle = Date.now(); }
+    };
+    window.py_getState = (id, type) => {
+        let el = getEl(id); if(!el) return false;
+        if(type === 0) return el.active; if(type === 1) return el.mainActive; if(type === 2) return el.secActive;
+        return false;
+    };
+    window.py_timeState = (id, type) => {
+        let el = getEl(id); if(!el) return 0.0;
+        const now = Date.now();
+        if(type === 0) return (now - el.lastToggle)/1000;
+        if(type === 1) return (now - el.lastMainToggle)/1000;
+        if(type === 2) return (now - el.lastSecToggle)/1000;
+        return 0.0;
+    };
+    window.py_disableButton = (id, disabled) => {
+        let el = getEl(id); if(el) el.disabled = disabled;
+    };
+
+    function startLogicEngine() {
+        const now = Date.now();
+        state.elements.forEach(el => {
+            if (el.type === 'button') {
+                el.active = el.defaultActive; el.mainActive = el.defaultActive; el.secActive = el.defaultActive;
+                el.lastToggle = now; el.lastMainToggle = now; el.lastSecToggle = now; el.disabled = false;
             }
         });
+
+        // Run Python
+        let code = document.getElementById('globalScript').value;
+        if (window.run_user_code) window.run_user_code(code);
+        if (window.pythonError) { alert("Python Error in Setup:\n" + window.pythonError); return; }
+
+        logicInterval = setInterval(() => {
+            if(window.pythonUpdate) {
+                try { window.pythonUpdate(); } 
+                catch(e) { console.error("Python Update Error:", e); }
+            }
+            updateAllVisuals();
+        }, 50); // 20Hz
+    }
+
+    function stopLogicEngine() {
+        if (logicInterval) clearInterval(logicInterval);
+        state.elements.forEach(el => { if(el.type === 'button') { el.mainActive = true; el.secActive = true; }});
+        render();
     }
 
     // --- RENDERER ---
     function render() {
         elementsLayer.innerHTML = '';
+        linesLayer.innerHTML = '';
         state.elements.forEach(el => {
             if (el.type === 'button') renderButton(el);
             if (el.type === 'line') renderLine(el);
@@ -230,12 +313,33 @@
         updateSelectionUI();
     }
 
+    function updateAllVisuals() {
+        state.elements.forEach(el => { if(el.type==='button') updateButtonVisuals(el); });
+    }
+
+    function updateButtonVisuals(elData) {
+        const domEl = document.getElementById(elData.id);
+        if (!domEl) return;
+        
+        // Update styling based on active states
+        const pb = domEl.querySelector('.pb');
+        const mSpan = domEl.querySelector('.main');
+        const sSpan = domEl.querySelector('.secondary');
+        
+        if(pb) {
+            // Simulator button physically active look
+            if(elData.active) pb.style.background = 'linear-gradient(328deg, rgba(57,57,57,1) 0%, rgba(62,62,62,1) 83%)';
+            else pb.style.background = '';
+        }
+        if (mSpan) mSpan.classList.toggle('logic-active', elData.mainActive);
+        if (sSpan) sSpan.classList.toggle('logic-active', elData.secActive);
+    }
+
     function renderButton(data) {
         const wrapper = document.createElement('div');
         wrapper.className = `panel-element ${state.selectedId === data.id ? 'selected' : ''}`;
-        wrapper.id = data.id;
-        wrapper.style.left = `${data.x}px`;
-        wrapper.style.top = `${data.y}px`;
+        wrapper.id = data.id; wrapper.dataset.id = data.id;
+        wrapper.style.left = `${data.x}px`; wrapper.style.top = `${data.y}px`;
 
         const btn = document.createElement('div');
         btn.className = `pushButton`;
@@ -246,268 +350,175 @@
         if (data.labelPos === 'left') { btn.style.flexDirection = 'row'; labelClass += ' label-vertical'; }
         if (data.labelPos === 'right') { btn.style.flexDirection = 'row-reverse'; labelClass += ' label-vertical'; }
 
-        // Logic display states
-        const mActive = data.mainActive ? 'logic-active' : '';
-        const sActive = data.secActive ? 'logic-active' : '';
-
         btn.innerHTML = `
             <div class="${labelClass}">${data.label}</div>
-            <div class="pb">
-                <span class="secondary ${data.secColor} ${sActive}">${data.secText}</span>
-                <span class="main ${data.mainColor} ${mActive}">${data.mainText}</span>
-            </div>
+            <div class="pb"><span class="secondary ${data.secColor}">${data.secText}</span><span class="main ${data.mainColor}">${data.mainText}</span></div>
         `;
         wrapper.appendChild(btn);
         elementsLayer.appendChild(wrapper);
+        updateButtonVisuals(data);
     }
 
     function renderLine(data) {
-        const line = document.createElement('div');
-        line.className = `panel-line ${state.selectedId === data.id ? 'selected' : ''}`;
-        line.id = data.id;
-        line.style.left = `${data.x}px`;
-        line.style.top = `${data.y}px`;
-        line.style.width = `${data.width}px`;
-        line.style.height = `${data.height}px`;
-        line.style.backgroundColor = data.color;
-        elementsLayer.appendChild(line);
-    }
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('id', data.id); line.setAttribute('data-id', data.id);
+        line.setAttribute('class', `svg-line ${state.selectedId === data.id ? 'selected' : ''}`);
+        line.setAttribute('x1', data.x1); line.setAttribute('y1', data.y1);
+        line.setAttribute('x2', data.x2); line.setAttribute('y2', data.y2);
+        line.setAttribute('stroke', data.color); line.setAttribute('stroke-width', data.width);
+        linesLayer.appendChild(line);
 
-    // --- LOGIC ENGINE ---
-    function startLogicEngine() {
-        const now = Date.now();
-        state.elements.forEach(el => {
-            if (el.type === 'button') {
-                el.active = el.defaultActive;
-                el.lastToggle = now;
-                el.mainActive = el.defaultActive;
-                el.secActive = el.defaultActive;
-            }
-        });
-        parseVariables();
-        logicInterval = setInterval(processLogic, 50); // 20Hz
-    }
-
-    function stopLogicEngine() {
-        if (logicInterval) clearInterval(logicInterval);
-        state.elements.forEach(el => {
-            if (el.type === 'button') {
-                el.mainActive = true; 
-                el.secActive = true;
-            }
-        });
-    }
-
-    function processLogic() {
-        const now = Date.now();
-        const env = {};
-
-        // 1. Build Environment Context from Buttons
-        state.elements.forEach(el => {
-            if (el.type !== 'button') return;
-            env[el.name] = el.active;
-            env[`${el.name}_main`] = el.mainActive;
-            env[`${el.name}_sec`] = el.secActive;
+        // Draw handles if selected in edit mode
+        if (state.selectedId === data.id && state.mode === 'edit') {
+            const h1 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            h1.setAttribute('class', 'line-handle'); h1.setAttribute('data-id', data.id); h1.setAttribute('data-point', '1');
+            h1.setAttribute('cx', data.x1); h1.setAttribute('cy', data.y1); h1.setAttribute('r', 8);
             
-            const durationSec = (now - el.lastToggle) / 1000;
-            env[`${el.name}_at`] = el.active ? durationSec : 0;
-            env[`${el.name}_hash`] = !el.active ? durationSec : 0;
-        });
-
-        // 2. Evaluate Global Variables dynamically
-        state.globalExpressions.forEach(g => {
-            const num = parseFloat(g.expr);
-            // If it's purely a number string, set directly. Otherwise, evaluate as logic.
-            if (!isNaN(num) && num.toString() === g.expr) {
-                env[g.key] = num;
-            } else {
-                env[g.key] = evaluateExpression(g.expr, env);
-            }
-        });
-
-        // 3. Evaluate Button Logic Strings
-        let needsRender = false;
-        state.elements.forEach(el => {
-            if (el.type !== 'button') return;
-
-            let newMain = el.active;
-            if (el.mainLogic && el.mainLogic.trim() !== "") {
-                newMain = !!evaluateExpression(el.mainLogic, env); // cast to boolean for display
-            }
-
-            let newSec = el.active;
-            if (el.secLogic && el.secLogic.trim() !== "") {
-                newSec = !!evaluateExpression(el.secLogic, env); // cast to boolean for display
-            }
-
-            if (newMain !== el.mainActive || newSec !== el.secActive) {
-                el.mainActive = newMain;
-                el.secActive = newSec;
-                needsRender = true;
-                
-                const domEl = document.getElementById(el.id);
-                if (domEl) {
-                    const mSpan = domEl.querySelector('.main');
-                    const sSpan = domEl.querySelector('.secondary');
-                    if (mSpan) mSpan.classList.toggle('logic-active', newMain);
-                    if (sSpan) sSpan.classList.toggle('logic-active', newSec);
-                }
-            }
-        });
-    }
-
-    function evaluateExpression(expr, env) {
-        try {
-            // Replace custom operators
-            let jsExpr = expr.replace(/&/g, '&&').replace(/\|/g, '||');
+            const h2 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            h2.setAttribute('class', 'line-handle'); h2.setAttribute('data-id', data.id); h2.setAttribute('data-point', '2');
+            h2.setAttribute('cx', data.x2); h2.setAttribute('cy', data.y2); h2.setAttribute('r', 8);
             
-            // Map custom suffixes (B1@ -> B1_at, B1$ -> B1_main, B1% -> B1_sec, B1# -> B1_hash)
-            jsExpr = jsExpr.replace(/([a-zA-Z0-9_]+)@/g, '$1_at');
-            jsExpr = jsExpr.replace(/([a-zA-Z0-9_]+)#/g, '$1_hash');
-            jsExpr = jsExpr.replace(/([a-zA-Z0-9_]+)\$/g, '$1_main');
-            jsExpr = jsExpr.replace(/([a-zA-Z0-9_]+)%/g, '$1_sec');
-
-            const keys = Object.keys(env);
-            const vals = Object.values(env);
-            
-            // Note: Returning the actual value, not strictly a boolean, so math works!
-            const func = new Function(...keys, `return (${jsExpr});`);
-            return func(...vals);
-        } catch (e) {
-            return false; // Silently fail bad logic
+            linesLayer.appendChild(h1); linesLayer.appendChild(h2);
         }
     }
 
-    // --- ELEMENT CREATION ---
+    // --- CREATION & DELETION ---
     function generateId() { return 'el_' + Math.random().toString(36).substr(2, 9); }
     function getNextName() { return 'B' + (elementCounter++); }
 
+    function getCenterCoords() {
+        return {
+            x: Math.round((-state.pan.x + viewport.clientWidth / 2) / state.zoom),
+            y: Math.round((-state.pan.y + viewport.clientHeight / 2) / state.zoom)
+        };
+    }
+
     function addButton() {
-        const centerX = (-state.pan.x + viewport.clientWidth / 2) / state.zoom;
-        const centerY = (-state.pan.y + viewport.clientHeight / 2) / state.zoom;
-        
+        const c = getCenterCoords();
         state.elements.push({
-            id: generateId(), type: 'button', name: getNextName(),
-            x: Math.round(centerX), y: Math.round(centerY),
-            label: 'BTN', labelPos: 'top',
-            defaultActive: false, active: false, lastToggle: Date.now(),
-            mainText: 'ON', mainColor: 'activeBlue', mainLogic: '', mainActive: true,
-            secText: 'FAULT', secColor: 'activeAmber', secLogic: '', secActive: true
+            id: generateId(), type: 'button', name: getNextName(), x: c.x, y: c.y,
+            label: 'BTN', labelPos: 'top', defaultActive: false, active: false, 
+            lastToggle: Date.now(), lastMainToggle: Date.now(), lastSecToggle: Date.now(), disabled: false,
+            mainText: 'ON', mainColor: 'activeBlue', mainActive: true,
+            secText: 'FAULT', secColor: 'activeAmber', secActive: true
         });
         render();
     }
 
     function addLine() {
-        const centerX = (-state.pan.x + viewport.clientWidth / 2) / state.zoom;
-        const centerY = (-state.pan.y + viewport.clientHeight / 2) / state.zoom;
-        state.elements.push({
-            id: generateId(), type: 'line', x: Math.round(centerX), y: Math.round(centerY),
-            width: 150, height: 4, color: '#FFFFFF'
-        });
+        const c = getCenterCoords();
+        state.elements.push({ id: generateId(), type: 'line', x1: c.x - 50, y1: c.y, x2: c.x + 50, y2: c.y, width: 4, color: '#FFFFFF' });
         render();
     }
 
     function deleteSelected() {
         if (!state.selectedId) return;
         state.elements = state.elements.filter(e => e.id !== state.selectedId);
-        state.selectedId = null;
-        render();
+        state.selectedId = null; render();
     }
 
-    // --- INTERACTION & DRAGGING (Unified Touch/Mouse) ---
-    let isDragging = false;
+    // --- POINTER INTERACTION (Unified Mouse/Touch) ---
     let dragTarget = null;
+    let dragSubTarget = null; // for line handles
     let isPanning = false;
     let startPan = { x: 0, y: 0 };
+    let dragStartPos = {x:0, y:0};
 
-    function getEventPos(e) {
-        if (e.touches && e.touches.length > 0) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        return { x: e.clientX, y: e.clientY };
+    function getPointerPos(e) {
+        const rect = viewport.getBoundingClientRect();
+        let rawX = (e.clientX - rect.left - state.pan.x) / state.zoom;
+        let rawY = (e.clientY - rect.top - state.pan.y) / state.zoom;
+        
+        if (document.getElementById('snapGrid').checked) {
+            const gs = parseInt(document.getElementById('gridSize').value);
+            rawX = Math.round(rawX / gs) * gs; rawY = Math.round(rawY / gs) * gs;
+        }
+        return { rx: rawX, ry: rawY };
     }
 
-    function handleInputStart(e) {
-        // Only left click for mouse
-        if (e.type === 'mousedown' && e.button !== 0) return; 
+    viewport.addEventListener('pointerdown', (e) => {
+        if(e.target.closest('.ui-panel') || e.target.closest('button')) return;
+        if(e.pointerType === 'mouse' && e.button !== 0) return;
         
-        const pos = getEventPos(e);
-        const targetEl = e.target.closest('.panel-element, .panel-line');
+        // Prevent default to stop text selection / zooming natively
+        e.preventDefault(); 
+        viewport.setPointerCapture(e.pointerId);
+
+        const targetEl = e.target.closest('.panel-element, .svg-line, .line-handle');
 
         if (state.mode === 'play') {
-            if (targetEl && targetEl.classList.contains('panel-element')) {
-                const elData = state.elements.find(el => el.id === targetEl.id);
-                if (elData && elData.type === 'button') {
+            if (targetEl) {
+                const elId = targetEl.dataset.id || targetEl.id;
+                const elData = state.elements.find(el => el.id === elId);
+                if (elData && elData.type === 'button' && !elData.disabled) {
                     elData.active = !elData.active;
                     elData.lastToggle = Date.now();
+                    updateButtonVisuals(elData);
                 }
             } else {
-                isPanning = true;
-                startPan = { x: pos.x - state.pan.x, y: pos.y - state.pan.y };
+                isPanning = true; startPan = { x: e.clientX - state.pan.x, y: e.clientY - state.pan.y };
             }
             return;
         }
 
+        // Edit Mode
         if (targetEl) {
-            state.selectedId = targetEl.id;
-            isDragging = true;
+            const elId = targetEl.dataset.id || targetEl.id;
+            state.selectedId = elId;
             dragTarget = state.elements.find(el => el.id === state.selectedId);
+            
+            if (targetEl.classList.contains('line-handle')) {
+                dragSubTarget = targetEl.dataset.point; // '1' or '2'
+            } else {
+                dragSubTarget = null;
+                if(dragTarget.type === 'line') {
+                    // Record start to calculate delta dragging
+                    const pos = getPointerPos(e);
+                    dragStartPos = { lx1: dragTarget.x1, ly1: dragTarget.y1, lx2: dragTarget.x2, ly2: dragTarget.y2, mx: pos.rx, my: pos.ry };
+                }
+            }
             render();
         } else {
             state.selectedId = null;
-            isPanning = true;
-            startPan = { x: pos.x - state.pan.x, y: pos.y - state.pan.y };
+            isPanning = true; startPan = { x: e.clientX - state.pan.x, y: e.clientY - state.pan.y };
             render();
         }
-    }
+    });
 
-    function handleInputMove(e) {
-        const pos = getEventPos(e);
+    viewport.addEventListener('pointermove', (e) => {
         if (isPanning) {
-            state.pan.x = pos.x - startPan.x;
-            state.pan.y = pos.y - startPan.y;
+            state.pan.x = e.clientX - startPan.x; state.pan.y = e.clientY - startPan.y;
             updateTransform();
-        } else if (isDragging && dragTarget && state.mode === 'edit') {
-            const rect = viewport.getBoundingClientRect();
-            let rawX = (pos.x - rect.left - state.pan.x) / state.zoom;
-            let rawY = (pos.y - rect.top - state.pan.y) / state.zoom;
+        } else if (dragTarget && state.mode === 'edit') {
+            const pos = getPointerPos(e);
 
-            if (document.getElementById('snapGrid').checked) {
-                const gs = parseInt(document.getElementById('gridSize').value);
-                rawX = Math.round(rawX / gs) * gs;
-                rawY = Math.round(rawY / gs) * gs;
-            }
-
-            dragTarget.x = rawX;
-            dragTarget.y = rawY;
-            
-            const domEl = document.getElementById(dragTarget.id);
-            if (domEl) {
-                domEl.style.left = `${dragTarget.x}px`;
-                domEl.style.top = `${dragTarget.y}px`;
+            if (dragTarget.type === 'button') {
+                dragTarget.x = pos.rx; dragTarget.y = pos.ry;
+                document.getElementById(dragTarget.id).style.transform = `translate(-50%, -50%)`;
+                document.getElementById(dragTarget.id).style.left = `${dragTarget.x}px`;
+                document.getElementById(dragTarget.id).style.top = `${dragTarget.y}px`;
+                updateSelectionUI(); // update property inputs
+            } else if (dragTarget.type === 'line') {
+                if (dragSubTarget === '1') {
+                    dragTarget.x1 = pos.rx; dragTarget.y1 = pos.ry;
+                } else if (dragSubTarget === '2') {
+                    dragTarget.x2 = pos.rx; dragTarget.y2 = pos.ry;
+                } else {
+                    // Move entire line
+                    const dx = pos.rx - dragStartPos.mx; const dy = pos.ry - dragStartPos.my;
+                    dragTarget.x1 = dragStartPos.lx1 + dx; dragTarget.y1 = dragStartPos.ly1 + dy;
+                    dragTarget.x2 = dragStartPos.lx2 + dx; dragTarget.y2 = dragStartPos.ly2 + dy;
+                }
+                render(); // SVG lines require fast re-render for handles
+                updateSelectionUI();
             }
         }
-    }
+    });
 
-    function handleInputEnd() {
-        isDragging = false;
-        isPanning = false;
-        dragTarget = null;
-    }
-
-    // Bind Mouse Events
-    viewport.addEventListener('mousedown', handleInputStart);
-    window.addEventListener('mousemove', handleInputMove);
-    window.addEventListener('mouseup', handleInputEnd);
-
-    // Bind Touch Events
-    viewport.addEventListener('touchstart', (e) => { 
-        if(e.target.closest('.ui-panel') || e.target.id === 'hide-ui-btn' || e.target.id === 'exit-play-btn') return; 
-        handleInputStart(e); 
-    }, {passive: false});
-    window.addEventListener('touchmove', (e) => { 
-        if(isDragging || isPanning) e.preventDefault(); 
-        handleInputMove(e); 
-    }, {passive: false});
-    window.addEventListener('touchend', handleInputEnd);
+    viewport.addEventListener('pointerup', (e) => {
+        viewport.releasePointerCapture(e.pointerId);
+        dragTarget = null; dragSubTarget = null; isPanning = false;
+    });
 
     // --- PAN / ZOOM ---
     viewport.addEventListener('wheel', (e) => {
@@ -517,53 +528,38 @@
         const newZoom = Math.max(0.1, Math.min(state.zoom * zoomDelta, 5));
         
         const rect = viewport.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-
-        state.pan.x = mouseX - (mouseX - state.pan.x) * (newZoom / state.zoom);
-        state.pan.y = mouseY - (mouseY - state.pan.y) * (newZoom / state.zoom);
-        state.zoom = newZoom;
-        updateTransform();
+        state.pan.x = (e.clientX - rect.left) - ((e.clientX - rect.left) - state.pan.x) * (newZoom / state.zoom);
+        state.pan.y = (e.clientY - rect.top) - ((e.clientY - rect.top) - state.pan.y) * (newZoom / state.zoom);
+        state.zoom = newZoom; updateTransform();
     }, { passive: false });
 
     function updateTransform() {
         container.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom})`;
     }
+    function resetView() { state.pan = { x: 0, y: 0 }; state.zoom = 1; updateTransform(); }
 
-    function resetView() {
-        state.pan = { x: 0, y: 0 }; state.zoom = 1;
-        updateTransform();
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(e=>console.log(e)); } 
+        else { if (document.exitFullscreen) document.exitFullscreen(); }
     }
 
     // --- UI CONTROLS & PROPERTIES ---
     function updateGrid() {
         const gs = document.getElementById('gridSize').value;
-        const gridEl = document.getElementById('grid');
-        gridEl.style.backgroundSize = `${gs}px ${gs}px`;
-        gridEl.style.display = document.getElementById('showGrid').checked ? 'block' : 'none';
+        document.getElementById('grid').style.backgroundSize = `${gs}px ${gs}px`;
+        document.getElementById('grid').style.display = document.getElementById('showGrid').checked ? 'block' : 'none';
     }
-
     function updateBgColor(val) { viewport.style.backgroundColor = val; }
 
     function setMode(mode) {
-        state.mode = mode;
-        document.body.className = mode + '-mode';
-        document.getElementById('appMode').value = mode; // Sync the dropdown just in case
-        
-        if (mode === 'play') {
-            state.selectedId = null;
-            startLogicEngine();
-            render();
-        } else {
-            stopLogicEngine();
-            render();
-        }
+        state.mode = mode; document.body.className = mode + '-mode'; document.getElementById('appMode').value = mode;
+        if (mode === 'play') { state.selectedId = null; startLogicEngine(); render(); } 
+        else { stopLogicEngine(); }
     }
 
     function toggleUI() {
         state.uiVisible = !state.uiVisible;
-        const uiElements = document.querySelectorAll('.ui-panel');
-        uiElements.forEach(el => el.style.visibility = state.uiVisible ? 'visible' : 'hidden');
+        document.querySelectorAll('.ui-panel').forEach(el => el.style.visibility = state.uiVisible ? 'visible' : 'hidden');
         document.getElementById('hide-ui-btn').innerText = state.uiVisible ? 'Hide UI (ESC)' : 'Show UI (ESC)';
     }
 
@@ -575,33 +571,27 @@
     });
 
     function updateSelectionUI() {
-        const propsPanel = document.getElementById('properties');
-        if (!state.selectedId || state.mode === 'play') {
-            propsPanel.style.display = 'none'; return;
-        }
+        const props = document.getElementById('properties');
+        if (!state.selectedId || state.mode === 'play') { props.style.display = 'none'; return; }
 
         const el = state.elements.find(e => e.id === state.selectedId);
         if (!el) return;
 
-        propsPanel.style.display = 'flex';
+        props.style.display = 'flex';
         document.getElementById('prop-button').style.display = el.type === 'button' ? 'flex' : 'none';
         document.getElementById('prop-line').style.display = el.type === 'line' ? 'flex' : 'none';
 
         if (el.type === 'button') {
             document.getElementById('p_name').value = el.name;
             document.getElementById('p_defaultActive').value = el.defaultActive ? "true" : "false";
-            document.getElementById('p_label').value = el.label;
-            document.getElementById('p_labelPos').value = el.labelPos;
-            document.getElementById('p_mainText').value = el.mainText;
-            document.getElementById('p_mainColor').value = el.mainColor;
-            document.getElementById('p_mainLogic').value = el.mainLogic || "";
-            document.getElementById('p_secText').value = el.secText;
-            document.getElementById('p_secColor').value = el.secColor;
-            document.getElementById('p_secLogic').value = el.secLogic || "";
+            document.getElementById('p_x').value = el.x; document.getElementById('p_y').value = el.y;
+            document.getElementById('p_label').value = el.label; document.getElementById('p_labelPos').value = el.labelPos;
+            document.getElementById('p_mainText').value = el.mainText; document.getElementById('p_mainColor').value = el.mainColor;
+            document.getElementById('p_secText').value = el.secText; document.getElementById('p_secColor').value = el.secColor;
         } else {
-            document.getElementById('p_lineWidth').value = el.width;
-            document.getElementById('p_lineHeight').value = el.height;
-            document.getElementById('p_lineColor').value = el.color;
+            document.getElementById('p_x1').value = el.x1; document.getElementById('p_y1').value = el.y1;
+            document.getElementById('p_x2').value = el.x2; document.getElementById('p_y2').value = el.y2;
+            document.getElementById('p_lineWidth').value = el.width; document.getElementById('p_lineColor').value = el.color;
         }
     }
 
@@ -613,20 +603,17 @@
 
     // --- EXPORT & IMPORT ---
     function exportLayout() {
-        const layoutData = {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
             bgColor: document.getElementById('bgColor').value,
-            globalVars: document.getElementById('globalVars').value,
+            globalScript: document.getElementById('globalScript').value,
             elements: state.elements
-        };
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(layoutData, null, 2));
-        const dlNode = document.createElement('a');
-        dlNode.setAttribute("href", dataStr); dlNode.setAttribute("download", "panel_layout.json");
+        }, null, 2));
+        const dlNode = document.createElement('a'); dlNode.setAttribute("href", dataStr); dlNode.setAttribute("download", "panel_layout.json");
         document.body.appendChild(dlNode); dlNode.click(); dlNode.remove();
     }
 
     function importLayout(event) {
-        const file = event.target.files[0];
-        if (!file) return;
+        const file = event.target.files[0]; if (!file) return;
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
@@ -634,9 +621,8 @@
                 if (data.elements) {
                     state.elements = data.elements;
                     if (data.bgColor) { document.getElementById('bgColor').value = data.bgColor; updateBgColor(data.bgColor); }
-                    if (data.globalVars !== undefined) { document.getElementById('globalVars').value = data.globalVars; parseVariables(); }
+                    if (data.globalScript !== undefined) document.getElementById('globalScript').value = data.globalScript;
                     
-                    // Reset counter to avoid name overlap
                     let maxNum = 0;
                     state.elements.forEach(el => {
                         if(el.name && el.name.startsWith('B')) {
@@ -645,18 +631,14 @@
                         }
                     });
                     elementCounter = maxNum + 1;
-
-                    state.selectedId = null;
-                    resetView(); render();
+                    state.selectedId = null; resetView(); render();
                 }
             } catch (err) { alert("Invalid layout file."); }
         };
-        reader.readAsText(file);
-        event.target.value = '';
+        reader.readAsText(file); event.target.value = '';
     }
 
-    // Init
-    updateGrid(); updateTransform(); stopLogicEngine(); parseVariables();
+    updateGrid(); updateTransform(); render();
 </script>
 </body>
 </html>
