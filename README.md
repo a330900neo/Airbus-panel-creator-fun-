@@ -1,4 +1,4 @@
-# Advanced Python Cockpit Panel Editor
+# Fun Airbus panel creator
 
 A powerful, single-file, browser-based application for designing, editing, and simulating interactive aircraft cockpit panels. It features a drag-and-drop interface, mobile-friendly touch controls, and a built-in Python scripting engine (powered by Brython) to create custom logic for your buttons and indicators.
 
