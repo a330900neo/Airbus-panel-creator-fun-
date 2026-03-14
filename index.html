@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fun Airbus Panel creator</title>
+    <title>Advanced Python Cockpit Editor</title>
     <script src="https://cdn.jsdelivr.net/npm/brython@3.11.3/brython.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/brython@3.11.3/brython_stdlib.js"></script>
 
@@ -15,10 +15,11 @@
 
         /* --- MOBILE FIXES & COCKPIT CSS --- */
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-        
         body { margin: 0; padding: 0; overflow: hidden; background: #111; font-family: sans-serif; user-select: none; -webkit-user-select: none; touch-action: none; }
         
         .panel-canvas { color: #FFF; font-family: 'OpenBus', Arial, sans-serif; font-size: 14pt; }
+        
+        /* Elements */
         .pushButton { display: flex; align-items: center; justify-content: center; border: none; background: transparent; text-align: center; position: relative; pointer-events: none; }
         .pushButton>.label { text-align: center; font-size: 0.7em; margin: 0; padding: 0.2em; white-space: nowrap; }
         .label-vertical { writing-mode: vertical-rl; text-orientation: upright; letter-spacing: 0.1em; }
@@ -27,7 +28,6 @@
         .pb>span { display: inline-block; margin-top: 0.55em; box-sizing: border-box; transition: color 0.1s, text-shadow 0.1s, border-color 0.1s; }
         .pb .main { border: 0.15em solid #222; border-radius: 0.1em; padding: 0.2em 0.2em 0.1em 0.2em; width: 80%; }
         
-        /* Independent Logic-Driven Active States */
         .pb .main.logic-active { color: #FFF; border-color: #FFF; text-shadow: 0 0 0.1em #FFF; }
         .pb .secondary.logic-active { color: #FFDF4F; text-shadow: 0 0 0.1em #FFDF4F; }
         .pb .secondary.logic-active.activeGreen { color: #2BEC24; text-shadow: 0 0 0.1em #2BEC24; }
@@ -36,6 +36,9 @@
         .pb .main.logic-active.activeRed { color: #E01223; border-color: #E01223; text-shadow: 0 0 0.1em #E01223; }
         .pb .main.logic-active.activeAmber { color: #FFDF4F; border-color: #FFDF4F; text-shadow: 0 0 0.1em #FFDF4F; }
         .pb .main.logic-active.activeGreen { color: #2BEC24; border-color: #2BEC24; text-shadow: 0 0 0.1em #2BEC24; }
+
+        /* Text Element */
+        .text-element { position: absolute; transform: translate(-50%, -50%); cursor: pointer; white-space: nowrap; pointer-events: all; }
 
         /* --- EDITOR UI CSS --- */
         #editor-ui { display: flex; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1000; }
@@ -48,7 +51,7 @@
         .ui-panel input[type="text"], .ui-panel input[type="number"], .ui-panel select, .ui-panel textarea { background: #111; color: white; border: 1px solid #555; padding: 6px; border-radius: 4px; font-family: inherit; width: 100%; }
         .ui-panel button { background: #3B4C61; color: white; border: 1px solid #555; padding: 6px; border-radius: 4px; cursor: pointer; transition: 0.2s; }
         .ui-panel button:hover { background: #54BEFF; color: black; }
-        .ui-panel textarea { resize: vertical; min-height: 250px; font-family: monospace; white-space: pre; }
+        .ui-panel textarea { resize: vertical; min-height: 200px; font-family: monospace; white-space: pre; }
         
         .row { display: flex; gap: 5px; align-items: center; }
         .row > * { flex: 1; }
@@ -61,13 +64,22 @@
         .grid-layer { position: absolute; top: -5000px; left: -5000px; width: 10000px; height: 10000px; pointer-events: none; background-size: 50px 50px; background-image: linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.1) 1px, transparent 1px); display: none; }
         
         .panel-element { position: absolute; transform: translate(-50%, -50%); cursor: pointer; touch-action: none; }
-        .panel-element.selected { outline: 2px dashed #54BEFF; outline-offset: 4px; z-index: 100; }
+        .panel-element.selected, .text-element.selected { outline: 2px dashed #54BEFF; outline-offset: 4px; z-index: 100; }
         
-        /* Lines Layer */
+        /* Lines & SVG Layer */
         #lines-layer { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; }
-        .svg-line { pointer-events: stroke; cursor: pointer; }
-        .svg-line.selected { stroke-dasharray: 5,5; stroke: #54BEFF !important; }
-        .line-handle { pointer-events: all; fill: #54BEFF; stroke: white; stroke-width: 2; cursor: move; }
+       .svg-path { 
+    pointer-events: stroke; 
+    cursor: pointer; 
+    stroke-linejoin: miter; 
+    stroke-miterlimit: 10; 
+    stroke-linecap: square; 
+}
+        .svg-path.polygon { pointer-events: all; }
+        .svg-path.selected { stroke-dasharray: 5,5; stroke: #54BEFF !important; }
+        .svg-handle { pointer-events: all; stroke: white; stroke-width: 2; cursor: move; }
+        .handle-point { fill: #54BEFF; }
+        .handle-center { fill: #FFDF4F; }
 
         body.play-mode #viewport { cursor: default; }
         body.play-mode .ui-panel { display: none; }
@@ -80,6 +92,10 @@
 
         #exit-play-btn { display: none; position: absolute; top: 20px; left: 20px; z-index: 2000; padding: 10px 15px; background: #3B4C61; color: white; border: 2px solid #54BEFF; border-radius: 5px; cursor: pointer; font-weight: bold; pointer-events: auto; }
         body.play-mode #exit-play-btn { display: block; }
+
+        /* Floating Connect Button */
+        #connect-btn { position: absolute; display: none; background: #2BEC24; color: black; border: 2px solid white; border-radius: 50%; width: 30px; height: 30px; text-align: center; line-height: 26px; cursor: pointer; font-size: 16px; z-index: 3000; transform: translate(-50%, -50%); pointer-events: auto; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        #connect-btn:hover { background: #FFF; }
     </style>
 </head>
 <body onload="brython()">
@@ -89,17 +105,12 @@ from browser import window
 import traceback
 
 def run_user_code(code):
-    env = {
-        'light': window.py_light,
-        'getState': window.py_getState,
-        'timeState': window.py_timeState,
-        'disableButton': window.py_disableButton
-    }
+    env = {'light': window.py_light, 'getState': window.py_getState, 'timeState': window.py_timeState, 'disableButton': window.py_disableButton}
     try:
         exec(code, env)
         window.pythonSetup = env.get('setup', lambda: None)
         window.pythonUpdate = env.get('update', lambda: None)
-        window.pythonSetup() # run setup immediately
+        window.pythonSetup() 
         window.pythonError = ""
     except Exception as e:
         window.pythonError = traceback.format_exc()
@@ -112,6 +123,7 @@ window.run_user_code = run_user_code
         <div id="grid" class="grid-layer"></div>
         <svg id="lines-layer"></svg>
         <div id="elements-layer"></div>
+        <div id="connect-btn" onclick="mergeLines()">🔗</div>
     </div>
 </div>
 
@@ -129,30 +141,25 @@ window.run_user_code = run_user_code
             </select>
         </label>
         
-        <h3>Python Global Script</h3>
-        <label>Define `setup()` and `update()`<br>
-            <textarea id="globalScript" spellcheck="false">def setup():
-    pass
+        <h3>Python Script</h3>
+        <label>
+            <textarea id="globalScript" spellcheck="false"># Global variables here
+APU = 0
+
+def setup():
+    global APU
+    APU = 0
 
 def update():
-    # Example: B2 copies B1's main state
+    global APU
     if getState("B1", 0):
-        light(True, 1, "B2")
+        light(True, 1, "B1")
     else:
-        light(False, 1, "B2")
-        
-    # Example: Amber light if B1 is on for 3+ secs
-    if timeState("B1", 0) > 3.0:
-        light(True, 2, "B1")
-    else:
-        light(False, 2, "B1")
-            </textarea>
+        light(False, 1, "B1")</textarea>
         </label>
 
         <h3>Panel Settings</h3>
-        <label>Background Color:
-            <input type="color" id="bgColor" value="#A7B7CA" onchange="updateBgColor(this.value)">
-        </label>
+        <label>Background Color: <input type="color" id="bgColor" value="#A7B7CA" onchange="updateBgColor(this.value)"></label>
         <div class="row">
             <label>Grid px: <input type="number" id="gridSize" value="50" onchange="updateGrid()"></label>
             <label style="flex-direction: row;">Show: <input type="checkbox" id="showGrid" onchange="updateGrid()"></label>
@@ -161,8 +168,13 @@ def update():
         
         <h3>Add Elements</h3>
         <div class="row">
-            <button onclick="addButton()">+ Add Button</button>
-            <button onclick="addLine()">+ Add Line</button>
+            <button onclick="addButton()">+ Button</button>
+            <button onclick="addText()">+ Text</button>
+        </div>
+        <div class="row">
+            <button onclick="addPolyline()">+ Line</button>
+            <button onclick="addPolygon()">+ Polygon</button>
+            <button onclick="addArc()">+ Arc</button>
         </div>
         
         <h3>File</h3>
@@ -176,62 +188,52 @@ def update():
 
     <div class="ui-panel" id="properties" style="display: none;">
         <h3>Properties</h3>
-        <div id="prop-shared">
-            <button onclick="deleteSelected()" style="background: #E01223; margin-bottom: 10px; width: 100%;">Delete Selected</button>
-        </div>
+        <button onclick="deleteSelected()" style="background: #E01223; margin-bottom: 10px; width: 100%;">Delete Selected</button>
         
+        <div id="prop-text" style="display: none; flex-direction: column; gap: 8px;">
+            <label>Text: <input type="text" id="t_text" oninput="updateProp('text', this.value)"></label>
+            <div class="row">
+                <label>Pos X: <input type="number" id="t_x" oninput="updateProp('x', parseInt(this.value))"></label>
+                <label>Pos Y: <input type="number" id="t_y" oninput="updateProp('y', parseInt(this.value))"></label>
+            </div>
+            <div class="row">
+                <label>Font Size (px): <input type="number" id="t_fontSize" oninput="updateProp('fontSize', parseInt(this.value))"></label>
+                <label>Color: <input type="color" id="t_color" oninput="updateProp('color', this.value)"></label>
+            </div>
+        </div>
+
         <div id="prop-button" style="display: none; flex-direction: column; gap: 8px;">
             <div class="row">
                 <label>Name (ID): <input type="text" id="p_name" oninput="updateProp('name', this.value)"></label>
-                <label>Default On: <select id="p_defaultActive" onchange="updateProp('defaultActive', this.value === 'true')">
-                    <option value="false">False</option><option value="true">True</option>
-                </select></label>
+                <label>Def. On: <select id="p_defaultActive" onchange="updateProp('defaultActive', this.value === 'true')"><option value="false">False</option><option value="true">True</option></select></label>
             </div>
-            
             <div class="row">
                 <label>Pos X: <input type="number" id="p_x" oninput="updateProp('x', parseInt(this.value))"></label>
                 <label>Pos Y: <input type="number" id="p_y" oninput="updateProp('y', parseInt(this.value))"></label>
             </div>
-            
             <label>Label Text: <input type="text" id="p_label" oninput="updateProp('label', this.value)"></label>
-            <label>Label Position:
-                <select id="p_labelPos" onchange="updateProp('labelPos', this.value)">
-                    <option value="top">Top</option><option value="bottom">Bottom</option>
-                    <option value="left">Left (Vert)</option><option value="right">Right (Vert)</option>
-                </select>
-            </label>
-            
+            <label>Label Pos: <select id="p_labelPos" onchange="updateProp('labelPos', this.value)"><option value="top">Top</option><option value="bottom">Bottom</option><option value="left">Left</option><option value="right">Right</option></select></label>
             <hr style="border-color:#444; width:100%;">
             <label>Main Text: <input type="text" id="p_mainText" oninput="updateProp('mainText', this.value)"></label>
-            <label>Main Color:
-                <select id="p_mainColor" onchange="updateProp('mainColor', this.value)">
-                    <option value="activeBlue">Blue</option><option value="activeWhite">White</option>
-                    <option value="activeGreen">Green</option><option value="activeAmber">Amber</option><option value="activeRed">Red</option>
-                </select>
-            </label>
-
+            <label>Main Color: <select id="p_mainColor" onchange="updateProp('mainColor', this.value)"><option value="activeBlue">Blue</option><option value="activeWhite">White</option><option value="activeGreen">Green</option><option value="activeAmber">Amber</option><option value="activeRed">Red</option></select></label>
             <hr style="border-color:#444; width:100%;">
             <label>Sec Text: <input type="text" id="p_secText" oninput="updateProp('secText', this.value)"></label>
-            <label>Sec Color:
-                <select id="p_secColor" onchange="updateProp('secColor', this.value)">
-                    <option value="activeAmber">Amber</option><option value="activeRed">Red</option>
-                    <option value="activeWhite">White</option><option value="activeGreen">Green</option><option value="activeBlue">Blue</option>
-                </select>
-            </label>
+            <label>Sec Color: <select id="p_secColor" onchange="updateProp('secColor', this.value)"><option value="activeAmber">Amber</option><option value="activeRed">Red</option><option value="activeWhite">White</option><option value="activeGreen">Green</option><option value="activeBlue">Blue</option></select></label>
         </div>
 
-        <div id="prop-line" style="display: none; flex-direction: column; gap: 10px;">
+        <div id="prop-poly" style="display: none; flex-direction: column; gap: 10px;">
             <div class="row">
-                <label>X1: <input type="number" id="p_x1" oninput="updateProp('x1', parseInt(this.value))"></label>
-                <label>Y1: <input type="number" id="p_y1" oninput="updateProp('y1', parseInt(this.value))"></label>
+                <label>Thickness: <input type="number" id="pl_width" oninput="updateProp('width', parseInt(this.value))"></label>
+                <label>Stroke Color: <input type="color" id="pl_color" oninput="updateProp('color', this.value)"></label>
             </div>
+            <label style="flex-direction: row;"><input type="checkbox" id="pl_closed" onchange="updateProp('closed', this.checked)"> Closed Shape</label>
+            <label>Fill Color (if closed/polygon): <input type="color" id="pl_fill" oninput="updateProp('fill', this.value)"></label>
+        </div>
+
+        <div id="prop-arc" style="display: none; flex-direction: column; gap: 10px;">
             <div class="row">
-                <label>X2: <input type="number" id="p_x2" oninput="updateProp('x2', parseInt(this.value))"></label>
-                <label>Y2: <input type="number" id="p_y2" oninput="updateProp('y2', parseInt(this.value))"></label>
-            </div>
-            <div class="row">
-                <label>Thickness: <input type="number" id="p_lineWidth" oninput="updateProp('width', parseInt(this.value))"></label>
-                <label>Color: <input type="color" id="p_lineColor" oninput="updateProp('color', this.value)"></label>
+                <label>Thickness: <input type="number" id="a_width" oninput="updateProp('width', parseInt(this.value))"></label>
+                <label>Color: <input type="color" id="a_color" oninput="updateProp('color', this.value)"></label>
             </div>
         </div>
     </div>
@@ -239,14 +241,14 @@ def update():
 
 <script>
     // --- STATE MANAGEMENT ---
-    let state = { elements: [], selectedId: null, mode: 'edit', uiVisible: true, pan: { x: 0, y: 0 }, zoom: 1 };
-    let logicInterval = null;
-    let elementCounter = 1;
+    let state = { elements: [], selectedId: null, mode: 'edit', uiVisible: true, pan: { x: 0, y: 0 }, zoom: 1, overlapProposal: null };
+    let logicInterval = null; let elementCounter = 1;
 
     const viewport = document.getElementById('viewport');
     const container = document.getElementById('canvas-container');
     const elementsLayer = document.getElementById('elements-layer');
     const linesLayer = document.getElementById('lines-layer');
+    const connectBtn = document.getElementById('connect-btn');
 
     // --- PYTHON API HOOKS ---
     function getEl(id) { return state.elements.find(e => e.name === id); }
@@ -269,9 +271,7 @@ def update():
         if(type === 2) return (now - el.lastSecToggle)/1000;
         return 0.0;
     };
-    window.py_disableButton = (id, disabled) => {
-        let el = getEl(id); if(el) el.disabled = disabled;
-    };
+    window.py_disableButton = (id, disabled) => { let el = getEl(id); if(el) el.disabled = disabled; };
 
     function startLogicEngine() {
         const now = Date.now();
@@ -281,21 +281,15 @@ def update():
                 el.lastToggle = now; el.lastMainToggle = now; el.lastSecToggle = now; el.disabled = false;
             }
         });
-
-        // Run Python
         let code = document.getElementById('globalScript').value;
         if (window.run_user_code) window.run_user_code(code);
-        if (window.pythonError) { alert("Python Error in Setup:\n" + window.pythonError); return; }
+        if (window.pythonError) { alert("Python Error:\n" + window.pythonError); return; }
 
         logicInterval = setInterval(() => {
-            if(window.pythonUpdate) {
-                try { window.pythonUpdate(); } 
-                catch(e) { console.error("Python Update Error:", e); }
-            }
+            if(window.pythonUpdate) { try { window.pythonUpdate(); } catch(e) { console.error("Update Error:", e); } }
             updateAllVisuals();
-        }, 50); // 20Hz
+        }, 50);
     }
-
     function stopLogicEngine() {
         if (logicInterval) clearInterval(logicInterval);
         state.elements.forEach(el => { if(el.type === 'button') { el.mainActive = true; el.secActive = true; }});
@@ -304,33 +298,21 @@ def update():
 
     // --- RENDERER ---
     function render() {
-        elementsLayer.innerHTML = '';
-        linesLayer.innerHTML = '';
+        elementsLayer.innerHTML = ''; linesLayer.innerHTML = '';
         state.elements.forEach(el => {
             if (el.type === 'button') renderButton(el);
-            if (el.type === 'line') renderLine(el);
+            else if (el.type === 'text') renderText(el);
+            else if (el.type === 'polyline') renderPolyline(el);
+            else if (el.type === 'arc') renderArc(el);
         });
         updateSelectionUI();
     }
 
-    function updateAllVisuals() {
-        state.elements.forEach(el => { if(el.type==='button') updateButtonVisuals(el); });
-    }
-
+    function updateAllVisuals() { state.elements.forEach(el => { if(el.type==='button') updateButtonVisuals(el); }); }
     function updateButtonVisuals(elData) {
-        const domEl = document.getElementById(elData.id);
-        if (!domEl) return;
-        
-        // Update styling based on active states
-        const pb = domEl.querySelector('.pb');
-        const mSpan = domEl.querySelector('.main');
-        const sSpan = domEl.querySelector('.secondary');
-        
-        if(pb) {
-            // Simulator button physically active look
-            if(elData.active) pb.style.background = 'linear-gradient(328deg, rgba(57,57,57,1) 0%, rgba(62,62,62,1) 83%)';
-            else pb.style.background = '';
-        }
+        const domEl = document.getElementById(elData.id); if (!domEl) return;
+        const pb = domEl.querySelector('.pb'), mSpan = domEl.querySelector('.main'), sSpan = domEl.querySelector('.secondary');
+        if(pb) pb.style.background = elData.active ? 'linear-gradient(328deg, rgba(57,57,57,1) 0%, rgba(62,62,62,1) 83%)' : '';
         if (mSpan) mSpan.classList.toggle('logic-active', elData.mainActive);
         if (sSpan) sSpan.classList.toggle('logic-active', elData.secActive);
     }
@@ -338,210 +320,266 @@ def update():
     function renderButton(data) {
         const wrapper = document.createElement('div');
         wrapper.className = `panel-element ${state.selectedId === data.id ? 'selected' : ''}`;
-        wrapper.id = data.id; wrapper.dataset.id = data.id;
-        wrapper.style.left = `${data.x}px`; wrapper.style.top = `${data.y}px`;
-
-        const btn = document.createElement('div');
-        btn.className = `pushButton`;
-        
+        wrapper.id = data.id; wrapper.dataset.id = data.id; wrapper.style.left = `${data.x}px`; wrapper.style.top = `${data.y}px`;
+        const btn = document.createElement('div'); btn.className = `pushButton`;
         let labelClass = "label";
         if (data.labelPos === 'top') btn.style.flexDirection = 'column';
         if (data.labelPos === 'bottom') btn.style.flexDirection = 'column-reverse';
         if (data.labelPos === 'left') { btn.style.flexDirection = 'row'; labelClass += ' label-vertical'; }
         if (data.labelPos === 'right') { btn.style.flexDirection = 'row-reverse'; labelClass += ' label-vertical'; }
-
-        btn.innerHTML = `
-            <div class="${labelClass}">${data.label}</div>
-            <div class="pb"><span class="secondary ${data.secColor}">${data.secText}</span><span class="main ${data.mainColor}">${data.mainText}</span></div>
-        `;
-        wrapper.appendChild(btn);
-        elementsLayer.appendChild(wrapper);
-        updateButtonVisuals(data);
+        btn.innerHTML = `<div class="${labelClass}">${data.label}</div><div class="pb"><span class="secondary ${data.secColor}">${data.secText}</span><span class="main ${data.mainColor}">${data.mainText}</span></div>`;
+        wrapper.appendChild(btn); elementsLayer.appendChild(wrapper); updateButtonVisuals(data);
     }
 
-    function renderLine(data) {
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line.setAttribute('id', data.id); line.setAttribute('data-id', data.id);
-        line.setAttribute('class', `svg-line ${state.selectedId === data.id ? 'selected' : ''}`);
-        line.setAttribute('x1', data.x1); line.setAttribute('y1', data.y1);
-        line.setAttribute('x2', data.x2); line.setAttribute('y2', data.y2);
-        line.setAttribute('stroke', data.color); line.setAttribute('stroke-width', data.width);
-        linesLayer.appendChild(line);
+    function renderText(data) {
+        const txt = document.createElement('div');
+        txt.className = `text-element ${state.selectedId === data.id ? 'selected' : ''}`;
+        txt.id = data.id; txt.dataset.id = data.id;
+        txt.style.left = `${data.x}px`; txt.style.top = `${data.y}px`;
+        txt.style.fontSize = `${data.fontSize}px`; txt.style.color = data.color;
+        txt.innerText = data.text;
+        elementsLayer.appendChild(txt);
+    }
 
-        // Draw handles if selected in edit mode
+    function renderPolyline(data) {
+        if (data.points.length < 2) return;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        let d = `M ${data.points[0].x} ${data.points[0].y} `;
+        for(let i=1; i<data.points.length; i++) d += `L ${data.points[i].x} ${data.points[i].y} `;
+        if (data.closed) d += 'Z';
+        
+        path.setAttribute('id', data.id); path.setAttribute('data-id', data.id);
+        path.setAttribute('class', `svg-path ${data.closed ? 'polygon' : ''} ${state.selectedId === data.id ? 'selected' : ''}`);
+        path.setAttribute('d', d); path.setAttribute('stroke', data.color);
+        path.setAttribute('stroke-width', data.width);
+        path.setAttribute('fill', data.closed && data.fill ? data.fill : 'none');
+        linesLayer.appendChild(path);
+
         if (state.selectedId === data.id && state.mode === 'edit') {
-            const h1 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            h1.setAttribute('class', 'line-handle'); h1.setAttribute('data-id', data.id); h1.setAttribute('data-point', '1');
-            h1.setAttribute('cx', data.x1); h1.setAttribute('cy', data.y1); h1.setAttribute('r', 8);
-            
-            const h2 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            h2.setAttribute('class', 'line-handle'); h2.setAttribute('data-id', data.id); h2.setAttribute('data-point', '2');
-            h2.setAttribute('cx', data.x2); h2.setAttribute('cy', data.y2); h2.setAttribute('r', 8);
-            
-            linesLayer.appendChild(h1); linesLayer.appendChild(h2);
+            data.points.forEach((pt, i) => {
+                const h = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                h.setAttribute('class', 'svg-handle handle-point'); h.setAttribute('data-id', data.id); h.setAttribute('data-idx', i);
+                h.setAttribute('cx', pt.x); h.setAttribute('cy', pt.y); h.setAttribute('r', 6);
+                linesLayer.appendChild(h);
+            });
         }
     }
 
-    // --- CREATION & DELETION ---
+    function renderArc(data) {
+        const dx = data.sx - data.cx, dy = data.sy - data.cy;
+        const r = Math.sqrt(dx*dx + dy*dy);
+        let a1 = Math.atan2(dy, dx);
+        let a2 = Math.atan2(data.ey - data.cy, data.ex - data.cx);
+        if (a2 <= a1) a2 += 2 * Math.PI;
+        
+        const largeArc = (a2 - a1 > Math.PI) ? 1 : 0;
+        const ex_true = data.cx + r * Math.cos(a2), ey_true = data.cy + r * Math.sin(a2);
+        
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const d = `M ${data.sx} ${data.sy} A ${r} ${r} 0 ${largeArc} 1 ${ex_true} ${ey_true}`;
+        
+        path.setAttribute('id', data.id); path.setAttribute('data-id', data.id);
+        path.setAttribute('class', `svg-path ${state.selectedId === data.id ? 'selected' : ''}`);
+        path.setAttribute('d', d); path.setAttribute('stroke', data.color);
+        path.setAttribute('stroke-width', data.width); path.setAttribute('fill', 'none');
+        linesLayer.appendChild(path);
+
+        if (state.selectedId === data.id && state.mode === 'edit') {
+            const drawHandle = (cls, x, y, type) => {
+                const h = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                h.setAttribute('class', `svg-handle ${cls}`); h.setAttribute('data-id', data.id); h.setAttribute('data-type', type);
+                h.setAttribute('cx', x); h.setAttribute('cy', y); h.setAttribute('r', 7); linesLayer.appendChild(h);
+            };
+            drawHandle('handle-center', data.cx, data.cy, 'c'); // center
+            drawHandle('handle-point', data.sx, data.sy, 's');  // start
+            drawHandle('handle-point', ex_true, ey_true, 'e');  // end
+        }
+    }
+
+    // --- CREATION ---
     function generateId() { return 'el_' + Math.random().toString(36).substr(2, 9); }
     function getNextName() { return 'B' + (elementCounter++); }
-
-    function getCenterCoords() {
-        return {
-            x: Math.round((-state.pan.x + viewport.clientWidth / 2) / state.zoom),
-            y: Math.round((-state.pan.y + viewport.clientHeight / 2) / state.zoom)
-        };
-    }
+    function getCenterCoords() { return { x: Math.round((-state.pan.x + viewport.clientWidth / 2) / state.zoom), y: Math.round((-state.pan.y + viewport.clientHeight / 2) / state.zoom) }; }
 
     function addButton() {
         const c = getCenterCoords();
-        state.elements.push({
-            id: generateId(), type: 'button', name: getNextName(), x: c.x, y: c.y,
-            label: 'BTN', labelPos: 'top', defaultActive: false, active: false, 
-            lastToggle: Date.now(), lastMainToggle: Date.now(), lastSecToggle: Date.now(), disabled: false,
-            mainText: 'ON', mainColor: 'activeBlue', mainActive: true,
-            secText: 'FAULT', secColor: 'activeAmber', secActive: true
-        });
+        state.elements.push({ id: generateId(), type: 'button', name: getNextName(), x: c.x, y: c.y, label: 'BTN', labelPos: 'top', defaultActive: false, active: false, lastToggle: Date.now(), lastMainToggle: Date.now(), lastSecToggle: Date.now(), disabled: false, mainText: 'ON', mainColor: 'activeBlue', mainActive: true, secText: 'FAULT', secColor: 'activeAmber', secActive: true });
         render();
     }
-
-    function addLine() {
+    function addText() {
         const c = getCenterCoords();
-        state.elements.push({ id: generateId(), type: 'line', x1: c.x - 50, y1: c.y, x2: c.x + 50, y2: c.y, width: 4, color: '#FFFFFF' });
+        state.elements.push({ id: generateId(), type: 'text', text: 'LABEL', x: c.x, y: c.y, fontSize: 18, color: '#FFFFFF' });
         render();
     }
-
+    function addPolyline() {
+        const c = getCenterCoords();
+        state.elements.push({ id: generateId(), type: 'polyline', points: [{x: c.x - 50, y: c.y}, {x: c.x + 50, y: c.y}], width: 4, color: '#FFFFFF', closed: false, fill: '#54BEFF' });
+        render();
+    }
+    function addPolygon() {
+        const c = getCenterCoords();
+        state.elements.push({ id: generateId(), type: 'polyline', points: [{x: c.x, y: c.y - 50}, {x: c.x + 50, y: c.y + 50}, {x: c.x - 50, y: c.y + 50}], width: 4, color: '#FFFFFF', closed: true, fill: 'rgba(84, 190, 255, 0.5)' });
+        render();
+    }
+    function addArc() {
+        const c = getCenterCoords();
+        state.elements.push({ id: generateId(), type: 'arc', cx: c.x, cy: c.y, sx: c.x, sy: c.y - 50, ex: c.x + 50, ey: c.y, width: 4, color: '#FFFFFF' });
+        render();
+    }
     function deleteSelected() {
         if (!state.selectedId) return;
         state.elements = state.elements.filter(e => e.id !== state.selectedId);
         state.selectedId = null; render();
     }
 
-    // --- POINTER INTERACTION (Unified Mouse/Touch) ---
-    let dragTarget = null;
-    let dragSubTarget = null; // for line handles
-    let isPanning = false;
-    let startPan = { x: 0, y: 0 };
-    let dragStartPos = {x:0, y:0};
+    // --- POINTER INTERACTION ---
+    let dragTarget = null, dragSubTarget = null, isPanning = false, startPan = { x: 0, y: 0 }, dragStartPos = null;
 
     function getPointerPos(e) {
         const rect = viewport.getBoundingClientRect();
-        let rawX = (e.clientX - rect.left - state.pan.x) / state.zoom;
-        let rawY = (e.clientY - rect.top - state.pan.y) / state.zoom;
-        
+        let rx = (e.clientX - rect.left - state.pan.x) / state.zoom;
+        let ry = (e.clientY - rect.top - state.pan.y) / state.zoom;
         if (document.getElementById('snapGrid').checked) {
             const gs = parseInt(document.getElementById('gridSize').value);
-            rawX = Math.round(rawX / gs) * gs; rawY = Math.round(rawY / gs) * gs;
+            rx = Math.round(rx / gs) * gs; ry = Math.round(ry / gs) * gs;
         }
-        return { rx: rawX, ry: rawY };
+        return { rx, ry };
     }
 
     viewport.addEventListener('pointerdown', (e) => {
-        if(e.target.closest('.ui-panel') || e.target.closest('button')) return;
+        if(e.target.closest('.ui-panel') || e.target.closest('button') || e.target.id === 'connect-btn') return;
         if(e.pointerType === 'mouse' && e.button !== 0) return;
-        
-        // Prevent default to stop text selection / zooming natively
-        e.preventDefault(); 
-        viewport.setPointerCapture(e.pointerId);
+        e.preventDefault(); viewport.setPointerCapture(e.pointerId);
 
-        const targetEl = e.target.closest('.panel-element, .svg-line, .line-handle');
+        const targetEl = e.target.closest('.panel-element, .text-element, .svg-path, .svg-handle');
 
         if (state.mode === 'play') {
             if (targetEl) {
                 const elId = targetEl.dataset.id || targetEl.id;
                 const elData = state.elements.find(el => el.id === elId);
                 if (elData && elData.type === 'button' && !elData.disabled) {
-                    elData.active = !elData.active;
-                    elData.lastToggle = Date.now();
-                    updateButtonVisuals(elData);
+                    elData.active = !elData.active; elData.lastToggle = Date.now(); updateButtonVisuals(elData);
                 }
-            } else {
-                isPanning = true; startPan = { x: e.clientX - state.pan.x, y: e.clientY - state.pan.y };
-            }
+            } else { isPanning = true; startPan = { x: e.clientX - state.pan.x, y: e.clientY - state.pan.y }; }
             return;
         }
 
-        // Edit Mode
         if (targetEl) {
             const elId = targetEl.dataset.id || targetEl.id;
-            state.selectedId = elId;
-            dragTarget = state.elements.find(el => el.id === state.selectedId);
+            state.selectedId = elId; dragTarget = state.elements.find(el => el.id === state.selectedId);
             
-            if (targetEl.classList.contains('line-handle')) {
-                dragSubTarget = targetEl.dataset.point; // '1' or '2'
+            if (targetEl.classList.contains('svg-handle')) {
+                if (dragTarget.type === 'polyline') dragSubTarget = parseInt(targetEl.dataset.idx);
+                if (dragTarget.type === 'arc') dragSubTarget = targetEl.dataset.type;
             } else {
                 dragSubTarget = null;
-                if(dragTarget.type === 'line') {
-                    // Record start to calculate delta dragging
-                    const pos = getPointerPos(e);
-                    dragStartPos = { lx1: dragTarget.x1, ly1: dragTarget.y1, lx2: dragTarget.x2, ly2: dragTarget.y2, mx: pos.rx, my: pos.ry };
+                const pos = getPointerPos(e);
+                if(dragTarget.type === 'polyline') {
+                    dragStartPos = { points: dragTarget.points.map(p => ({...p})), mx: pos.rx, my: pos.ry };
+                } else if(dragTarget.type === 'arc') {
+                    dragStartPos = { cx: dragTarget.cx, cy: dragTarget.cy, sx: dragTarget.sx, sy: dragTarget.sy, ex: dragTarget.ex, ey: dragTarget.ey, mx: pos.rx, my: pos.ry };
                 }
             }
             render();
         } else {
-            state.selectedId = null;
-            isPanning = true; startPan = { x: e.clientX - state.pan.x, y: e.clientY - state.pan.y };
-            render();
+            state.selectedId = null; isPanning = true; startPan = { x: e.clientX - state.pan.x, y: e.clientY - state.pan.y };
+            connectBtn.style.display = 'none'; state.overlapProposal = null; render();
         }
     });
 
     viewport.addEventListener('pointermove', (e) => {
-        if (isPanning) {
-            state.pan.x = e.clientX - startPan.x; state.pan.y = e.clientY - startPan.y;
-            updateTransform();
-        } else if (dragTarget && state.mode === 'edit') {
+        if (isPanning) { state.pan.x = e.clientX - startPan.x; state.pan.y = e.clientY - startPan.y; updateTransform(); } 
+        else if (dragTarget && state.mode === 'edit') {
             const pos = getPointerPos(e);
 
-            if (dragTarget.type === 'button') {
+            if (dragTarget.type === 'button' || dragTarget.type === 'text') {
                 dragTarget.x = pos.rx; dragTarget.y = pos.ry;
-                document.getElementById(dragTarget.id).style.transform = `translate(-50%, -50%)`;
                 document.getElementById(dragTarget.id).style.left = `${dragTarget.x}px`;
                 document.getElementById(dragTarget.id).style.top = `${dragTarget.y}px`;
-                updateSelectionUI(); // update property inputs
-            } else if (dragTarget.type === 'line') {
-                if (dragSubTarget === '1') {
-                    dragTarget.x1 = pos.rx; dragTarget.y1 = pos.ry;
-                } else if (dragSubTarget === '2') {
-                    dragTarget.x2 = pos.rx; dragTarget.y2 = pos.ry;
-                } else {
-                    // Move entire line
-                    const dx = pos.rx - dragStartPos.mx; const dy = pos.ry - dragStartPos.my;
-                    dragTarget.x1 = dragStartPos.lx1 + dx; dragTarget.y1 = dragStartPos.ly1 + dy;
-                    dragTarget.x2 = dragStartPos.lx2 + dx; dragTarget.y2 = dragStartPos.ly2 + dy;
-                }
-                render(); // SVG lines require fast re-render for handles
                 updateSelectionUI();
+            } else if (dragTarget.type === 'polyline') {
+                if (dragSubTarget !== null) {
+                    dragTarget.points[dragSubTarget] = { x: pos.rx, y: pos.ry };
+                    checkLineOverlap(dragTarget, dragSubTarget, pos.rx, pos.ry); // Check for line merge
+                } else {
+                    const dx = pos.rx - dragStartPos.mx, dy = pos.ry - dragStartPos.my;
+                    dragTarget.points = dragStartPos.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+                    connectBtn.style.display = 'none'; state.overlapProposal = null;
+                }
+                render(); updateSelectionUI();
+            } else if (dragTarget.type === 'arc') {
+                if (dragSubTarget === 'c') { dragTarget.cx = pos.rx; dragTarget.cy = pos.ry; }
+                else if (dragSubTarget === 's') { dragTarget.sx = pos.rx; dragTarget.sy = pos.ry; }
+                else if (dragSubTarget === 'e') { dragTarget.ex = pos.rx; dragTarget.ey = pos.ry; }
+                else {
+                    const dx = pos.rx - dragStartPos.mx, dy = pos.ry - dragStartPos.my;
+                    dragTarget.cx = dragStartPos.cx + dx; dragTarget.cy = dragStartPos.cy + dy;
+                    dragTarget.sx = dragStartPos.sx + dx; dragTarget.sy = dragStartPos.sy + dy;
+                    dragTarget.ex = dragStartPos.ex + dx; dragTarget.ey = dragStartPos.ey + dy;
+                }
+                render(); updateSelectionUI();
             }
         }
     });
 
-    viewport.addEventListener('pointerup', (e) => {
-        viewport.releasePointerCapture(e.pointerId);
-        dragTarget = null; dragSubTarget = null; isPanning = false;
-    });
+    viewport.addEventListener('pointerup', (e) => { viewport.releasePointerCapture(e.pointerId); dragTarget = null; dragSubTarget = null; isPanning = false; });
+
+    // --- LINE CONNECTION LOGIC ---
+    function checkLineOverlap(movingPoly, pIdx, x, y) {
+        // Only allow connecting endpoints
+        if (pIdx !== 0 && pIdx !== movingPoly.points.length - 1) { connectBtn.style.display = 'none'; state.overlapProposal = null; return; }
+        
+        let found = false;
+        for (let el of state.elements) {
+            if (el.type === 'polyline' && el.id !== movingPoly.id && !el.closed) {
+                // check both ends of the other polyline
+                const ends = [0, el.points.length - 1];
+                for (let oIdx of ends) {
+                    const oPt = el.points[oIdx];
+                    if (Math.hypot(oPt.x - x, oPt.y - y) < 15) {
+                        state.overlapProposal = { p1: movingPoly, i1: pIdx, p2: el, i2: oIdx, x: oPt.x, y: oPt.y };
+                        connectBtn.style.left = `${oPt.x}px`; connectBtn.style.top = `${oPt.y}px`;
+                        connectBtn.style.display = 'block';
+                        found = true; break;
+                    }
+                }
+            }
+            if(found) break;
+        }
+        if (!found) { connectBtn.style.display = 'none'; state.overlapProposal = null; }
+    }
+
+    function mergeLines() {
+        if (!state.overlapProposal) return;
+        const { p1, i1, p2, i2 } = state.overlapProposal;
+        
+        // Ensure connection logic (reverse arrays if needed so p1 ends where p2 starts)
+        let arr1 = [...p1.points]; let arr2 = [...p2.points];
+        if (i1 === 0) arr1.reverse();
+        if (i2 === arr2.length - 1) arr2.reverse();
+
+        p1.points = arr1.concat(arr2.slice(1)); // merge and skip duplicated point
+        
+        // Delete p2
+        state.elements = state.elements.filter(e => e.id !== p2.id);
+        state.overlapProposal = null; connectBtn.style.display = 'none';
+        render(); updateSelectionUI();
+    }
+
 
     // --- PAN / ZOOM ---
     viewport.addEventListener('wheel', (e) => {
         if(e.target.closest('.ui-panel')) return; 
         e.preventDefault();
-        const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
-        const newZoom = Math.max(0.1, Math.min(state.zoom * zoomDelta, 5));
-        
+        const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1; const newZoom = Math.max(0.1, Math.min(state.zoom * zoomDelta, 5));
         const rect = viewport.getBoundingClientRect();
         state.pan.x = (e.clientX - rect.left) - ((e.clientX - rect.left) - state.pan.x) * (newZoom / state.zoom);
         state.pan.y = (e.clientY - rect.top) - ((e.clientY - rect.top) - state.pan.y) * (newZoom / state.zoom);
         state.zoom = newZoom; updateTransform();
     }, { passive: false });
-
-    function updateTransform() {
-        container.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom})`;
-    }
+    function updateTransform() { container.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom})`; }
     function resetView() { state.pan = { x: 0, y: 0 }; state.zoom = 1; updateTransform(); }
-
-    function toggleFullscreen() {
-        if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(e=>console.log(e)); } 
-        else { if (document.exitFullscreen) document.exitFullscreen(); }
-    }
+    function toggleFullscreen() { if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(e=>console.log(e)); else if (document.exitFullscreen) document.exitFullscreen(); }
 
     // --- UI CONTROLS & PROPERTIES ---
     function updateGrid() {
@@ -550,13 +588,11 @@ def update():
         document.getElementById('grid').style.display = document.getElementById('showGrid').checked ? 'block' : 'none';
     }
     function updateBgColor(val) { viewport.style.backgroundColor = val; }
-
     function setMode(mode) {
         state.mode = mode; document.body.className = mode + '-mode'; document.getElementById('appMode').value = mode;
-        if (mode === 'play') { state.selectedId = null; startLogicEngine(); render(); } 
+        if (mode === 'play') { state.selectedId = null; connectBtn.style.display='none'; startLogicEngine(); render(); } 
         else { stopLogicEngine(); }
     }
-
     function toggleUI() {
         state.uiVisible = !state.uiVisible;
         document.querySelectorAll('.ui-panel').forEach(el => el.style.visibility = state.uiVisible ? 'visible' : 'hidden');
@@ -565,33 +601,35 @@ def update():
 
     window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') toggleUI();
-        if ((e.key === 'Delete' || e.key === 'Backspace') && state.mode === 'edit' && state.selectedId && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
-            deleteSelected();
-        }
+        if ((e.key === 'Delete' || e.key === 'Backspace') && state.mode === 'edit' && state.selectedId && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') deleteSelected();
     });
 
     function updateSelectionUI() {
         const props = document.getElementById('properties');
         if (!state.selectedId || state.mode === 'play') { props.style.display = 'none'; return; }
-
-        const el = state.elements.find(e => e.id === state.selectedId);
-        if (!el) return;
+        const el = state.elements.find(e => e.id === state.selectedId); if (!el) return;
 
         props.style.display = 'flex';
-        document.getElementById('prop-button').style.display = el.type === 'button' ? 'flex' : 'none';
-        document.getElementById('prop-line').style.display = el.type === 'line' ? 'flex' : 'none';
+        ['prop-button', 'prop-text', 'prop-poly', 'prop-arc'].forEach(id => document.getElementById(id).style.display = 'none');
 
         if (el.type === 'button') {
-            document.getElementById('p_name').value = el.name;
-            document.getElementById('p_defaultActive').value = el.defaultActive ? "true" : "false";
+            document.getElementById('prop-button').style.display = 'flex';
+            document.getElementById('p_name').value = el.name; document.getElementById('p_defaultActive').value = el.defaultActive ? "true" : "false";
             document.getElementById('p_x').value = el.x; document.getElementById('p_y').value = el.y;
             document.getElementById('p_label').value = el.label; document.getElementById('p_labelPos').value = el.labelPos;
             document.getElementById('p_mainText').value = el.mainText; document.getElementById('p_mainColor').value = el.mainColor;
             document.getElementById('p_secText').value = el.secText; document.getElementById('p_secColor').value = el.secColor;
-        } else {
-            document.getElementById('p_x1').value = el.x1; document.getElementById('p_y1').value = el.y1;
-            document.getElementById('p_x2').value = el.x2; document.getElementById('p_y2').value = el.y2;
-            document.getElementById('p_lineWidth').value = el.width; document.getElementById('p_lineColor').value = el.color;
+        } else if (el.type === 'text') {
+            document.getElementById('prop-text').style.display = 'flex';
+            document.getElementById('t_text').value = el.text; document.getElementById('t_x').value = el.x; document.getElementById('t_y').value = el.y;
+            document.getElementById('t_fontSize').value = el.fontSize; document.getElementById('t_color').value = el.color;
+        } else if (el.type === 'polyline') {
+            document.getElementById('prop-poly').style.display = 'flex';
+            document.getElementById('pl_width').value = el.width; document.getElementById('pl_color').value = el.color;
+            document.getElementById('pl_closed').checked = el.closed; document.getElementById('pl_fill').value = el.fill || '#000000';
+        } else if (el.type === 'arc') {
+            document.getElementById('prop-arc').style.display = 'flex';
+            document.getElementById('a_width').value = el.width; document.getElementById('a_color').value = el.color;
         }
     }
 
@@ -603,13 +641,8 @@ def update():
 
     // --- EXPORT & IMPORT ---
     function exportLayout() {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
-            bgColor: document.getElementById('bgColor').value,
-            globalScript: document.getElementById('globalScript').value,
-            elements: state.elements
-        }, null, 2));
-        const dlNode = document.createElement('a'); dlNode.setAttribute("href", dataStr); dlNode.setAttribute("download", "panel_layout.json");
-        document.body.appendChild(dlNode); dlNode.click(); dlNode.remove();
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ bgColor: document.getElementById('bgColor').value, globalScript: document.getElementById('globalScript').value, elements: state.elements }, null, 2));
+        const dlNode = document.createElement('a'); dlNode.setAttribute("href", dataStr); dlNode.setAttribute("download", "panel_layout.json"); document.body.appendChild(dlNode); dlNode.click(); dlNode.remove();
     }
 
     function importLayout(event) {
@@ -619,19 +652,15 @@ def update():
             try {
                 const data = JSON.parse(e.target.result);
                 if (data.elements) {
-                    state.elements = data.elements;
+                    state.elements = data.elements.map(el => {
+                        // Backwards compatibility for old "line" type
+                        if(el.type === 'line') return { id: el.id, type: 'polyline', points: [{x: el.x1, y: el.y1}, {x: el.x2, y: el.y2}], width: el.width, color: el.color, closed: false, fill: 'none' };
+                        return el;
+                    });
                     if (data.bgColor) { document.getElementById('bgColor').value = data.bgColor; updateBgColor(data.bgColor); }
                     if (data.globalScript !== undefined) document.getElementById('globalScript').value = data.globalScript;
-                    
-                    let maxNum = 0;
-                    state.elements.forEach(el => {
-                        if(el.name && el.name.startsWith('B')) {
-                            let n = parseInt(el.name.substring(1));
-                            if(!isNaN(n) && n > maxNum) maxNum = n;
-                        }
-                    });
-                    elementCounter = maxNum + 1;
-                    state.selectedId = null; resetView(); render();
+                    let maxNum = 0; state.elements.forEach(el => { if(el.name && el.name.startsWith('B')) { let n = parseInt(el.name.substring(1)); if(!isNaN(n) && n > maxNum) maxNum = n; } });
+                    elementCounter = maxNum + 1; state.selectedId = null; resetView(); render();
                 }
             } catch (err) { alert("Invalid layout file."); }
         };
