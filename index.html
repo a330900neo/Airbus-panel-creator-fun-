@@ -42,7 +42,7 @@
 
         /* Knob Element */
         .knob-element { position: absolute; transform: translate(-50%, -50%); cursor: pointer; pointer-events: all; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .knob-img { width: 60px; height: 60px; pointer-events: none; transition: transform 0.1s cubic-bezier(0.2, 0.8, 0.2, 1); filter: drop-shadow(0px 4px 4px rgba(0,0,0,0.5)); }
+        .knob-img { width: 78px; height: 78px; pointer-events: none; transition: transform 0.1s cubic-bezier(0.2, 0.8, 0.2, 1); filter: drop-shadow(0px 4px 4px rgba(0,0,0,0.5)); }
         .knob-label { text-align: center; font-size: 0.7em; margin-top: 15px; pointer-events: none; white-space: nowrap; }
         .detent-label { position: absolute; font-size: 0.6em; white-space: nowrap; pointer-events: none; }
 
@@ -202,7 +202,10 @@ def update():
         </div>
 
         <div id="prop-knob" style="display: none; flex-direction: column; gap: 8px;">
-            <label>Detent Count (min 2): <input type="number" id="k_detents" min="2" oninput="updateKnobDetents(parseInt(this.value))"></label>
+            <div class="row">
+                <label>Count (min 2): <input type="number" id="k_detents" min="2" oninput="updateKnobDetents(parseInt(this.value))"></label>
+                <label>Default Detent: <input type="number" id="k_defaultDetent" min="0" oninput="updateProp('defaultDetent', parseInt(this.value))"></label>
+            </div>
             <label>Labels (comma separated): <input type="text" id="k_labels" oninput="updateProp('detentLabels', this.value.split(',').map(s=>s.trim()))"></label>
             <div class="row">
                 <label>Arc Range (°): <input type="number" id="k_arcRange" oninput="updateProp('arcRange', parseInt(this.value))"></label>
@@ -290,6 +293,9 @@ def update():
             if (el.type === 'button') {
                 el.active = el.defaultActive; el.mainActive = el.defaultActive; el.secActive = el.defaultActive;
                 el.lastToggle = now; el.lastMainToggle = now; el.lastSecToggle = now; el.disabled = false;
+            } else if (el.type === 'knob') {
+                el.currentDetent = el.defaultDetent !== undefined ? el.defaultDetent : 0;
+                updateKnobVisual(el);
             }
         });
         let code = document.getElementById('globalScript').value;
@@ -353,13 +359,13 @@ def update():
         let startAngle = data.arcOffset - data.arcRange / 2;
         let endAngle = data.arcOffset + data.arcRange / 2;
 
-        // Container size remains the same to fit everything
-        let html = `<div style="position:relative; width: 130px; height: 130px; display:flex; align-items:center; justify-content:center;">`;
+        // Container size increased by ~30% to fit the larger elements
+        let html = `<div style="position:relative; width: 170px; height: 170px; display:flex; align-items:center; justify-content:center;">`;
 
         // --- SVG Background for Arc and Ticks ---
-        html += `<svg width="130" height="130" style="position:absolute; top:0; left:0; pointer-events:none; overflow:visible;">`;
-        let cx = 65, cy = 65;
-        let arcRadius = 28; // Reduced from 38 to pull the arc closer to the knob
+        html += `<svg width="170" height="170" style="position:absolute; top:0; left:0; pointer-events:none; overflow:visible;">`;
+        let cx = 85, cy = 85;
+        let arcRadius = 36; // Increased by 30% (from 28 to 36)
         
         // Convert degrees to radians (Subtract 90 so 0deg points UP)
         let startRad = (startAngle - 90) * Math.PI / 180;
@@ -385,9 +391,9 @@ def update():
             // Start tick exactly on the arc
             let tx1 = cx + arcRadius * Math.cos(tickRad);
             let ty1 = cy + arcRadius * Math.sin(tickRad);
-            // End tick 8px outward (slightly shorter to match the tighter arc)
-            let tx2 = cx + (arcRadius + 8) * Math.cos(tickRad); 
-            let ty2 = cy + (arcRadius + 8) * Math.sin(tickRad);
+            // End tick 10px outward to match the new scale
+            let tx2 = cx + (arcRadius + 10) * Math.cos(tickRad); 
+            let ty2 = cy + (arcRadius + 10) * Math.sin(tickRad);
             
             html += `<line x1="${tx1}" y1="${ty1}" x2="${tx2}" y2="${ty2}" stroke="#FFF" stroke-width="3" stroke-linecap="round" />`;
         }
@@ -397,10 +403,9 @@ def update():
         data.detentLabels.forEach((lbl, i) => {
             let a = startAngle + i * step;
             let rad = (a - 90) * Math.PI / 180;
-            let radius = 50; // Reduced from 60 to pull the top labels closer
+            let radius = 58; // Increased by 30% (from 50 to 65)
             let lx = Math.cos(rad) * radius;
             let ly = Math.sin(rad) * radius;
-            // Removed font-weight: bold
             html += `<div class="detent-label" style="left: 50%; top: 50%; transform: translate(calc(-50% + ${lx}px), calc(-50% + ${ly}px)); font-size: 0.75em;">${lbl}</div>`;
         });
 
@@ -409,8 +414,8 @@ def update():
         html += `<img class="knob-img" src="https://raw.githubusercontent.com/a330900neo/Airbus-panel-creator-fun-/refs/heads/main/airbusknob.svg" style="transform: rotate(${currentAngle}deg); position:absolute; z-index:2;">`;
         
         // --- Bottom Label ---
-        // Increased negative margin-top to pull it closer to the knob, removed font-weight: bold
-        html += `</div><div class="knob-label" style="font-size: 0.8em; margin-top: -40px;">${data.label}</div>`;
+        // Increased negative margin-top to -55px to compensate for the larger 170px tall container
+        html += `</div><div class="knob-label" style="font-size: 0.8em; margin-top: -55px;">${data.label}</div>`;
 
         wrapper.innerHTML = html;
         elementsLayer.appendChild(wrapper);
@@ -500,7 +505,7 @@ def update():
     }
     function addKnob() {
         const c = getCenterCoords();
-        state.elements.push({ id: generateId(), type: 'knob', name: getNextName('K'), x: c.x, y: c.y, detents: 3, detentLabels: ['OFF', 'NAV', 'ATT'], arcRange: 120, arcOffset: 0, label: 'ADIR', currentDetent: 1 });
+        state.elements.push({ id: generateId(), type: 'knob', name: getNextName('K'), x: c.x, y: c.y, detents: 3, detentLabels: ['OFF', 'NAV', 'ATT'], arcRange: 120, arcOffset: 0, label: 'ADIR', currentDetent: 1, defaultDetent: 0 });
         render();
     }
     function addText() {
@@ -730,6 +735,7 @@ def update():
         } else if (el.type === 'knob') {
             document.getElementById('prop-knob').style.display = 'flex';
             document.getElementById('k_detents').value = el.detents;
+            document.getElementById('k_defaultDetent').value = el.defaultDetent !== undefined ? el.defaultDetent : 0;
             document.getElementById('k_labels').value = el.detentLabels.join(', ');
             document.getElementById('k_arcRange').value = el.arcRange;
             document.getElementById('k_arcOffset').value = el.arcOffset;
